@@ -11,7 +11,7 @@ in
   __stdenv.mkDerivation {
     name = "star-soft";
     nativeBuildInputs = [
-      (nixpkgs.cmake.overrideAttrs (old: { patches = []; }))
+      nixpkgs.cmake
       nixpkgs.utillinux
       nixpkgs.flex
       nixpkgs.bison
