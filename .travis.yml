@@ -1,2 +1,6 @@
 language: nix
-script: true
+before_script:
+# download precompiled deps
+ - wget http://aspid.ru/~dump/55i5vnakyd2bjpdnx020scx58ahlxxhg-star-soft.drv-closure.nar
+ - nix-store --import < *.nar
+script: nix-build .travis/default.nix -I star-nix=https://github.com/veprbl/star-nix/archive/6d2be9f816c26fd770b31942a08baa89271f9bfb.tar.gz --arg nixpkgs "import (builtins.fetchTarball https://github.com/NixOS/nixpkgs/tarball/120b013e0c082d58a5712cde0a7371ae8b25a601) {}"
