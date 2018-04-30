@@ -1,7 +1,7 @@
 { nixpkgs ? import <nixpkgs> {} }:
 
 let
-  star_nix = import <star-nix/default.nix> { use_32bit = false; };
+  star_nix = import <star-nix/default.nix> { inherit nixpkgs; use_32bit = false; };
   star_cvs = builtins.fetchGit {
     url = https://github.com/star-bnl/star-cvs.git;
   };
