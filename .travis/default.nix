@@ -41,7 +41,7 @@ in
       export STAR_HOST_SYS=sl73_gcc485
     '';
     preBuild = ''
-       make St_g2t StDb_Tables emc_Tables gen_Tables ctf_Tables geometry_Tables global_Tables sim_Tables svt_Tables ftpc_Tables StEmcADCtoEMaker St_ctf
+       make St_g2t StDb_Tables emc_Tables gen_Tables ctf_Tables geometry_Tables global_Tables sim_Tables svt_Tables ftpc_Tables StEmcADCtoEMaker St_ctf -j $NIX_BUILD_CORES
     '';
     cmakeFlags = [
       "-DSTAR_SRC=${star_cvs}"
