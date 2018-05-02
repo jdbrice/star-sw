@@ -202,11 +202,12 @@ env:
  - TARGET=StiUtilities
  - TARGET=Stl3RawReaderMaker
  - TARGET=Stl3Util
- - TARGET=Stv
- - TARGET=StvMaker
- - TARGET=StvSeed
- - TARGET=StvUtil
- - TARGET=TPCCATracker
+# Travis says: Build matrix exceeds 200 jobs
+# - TARGET=Stv
+# - TARGET=StvMaker
+# - TARGET=StvSeed
+# - TARGET=StvUtil
+# - TARGET=TPCCATracker
 before_script:
 # download precompiled deps
  - wget http://aspid.ru/~dump/55i5vnakyd2bjpdnx020scx58ahlxxhg-star-soft.drv-closure.nar
