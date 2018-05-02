@@ -1,4 +1,4 @@
-{ nixpkgs ? import <nixpkgs> {} }:
+{ nixpkgs ? import <nixpkgs> {}, target }:
 
 let
   star_nix = import <star-nix/default.nix> { inherit nixpkgs; use_32bit = false; };
@@ -9,7 +9,7 @@ let
   __stdenv = star_nix.eff_pkgs.overrideCC star_nix.eff_pkgs.stdenv star_nix.eff_pkgs.gfortran48;
 in
   __stdenv.mkDerivation {
-    name = "star-soft";
+    name = "star-soft-${target}";
     nativeBuildInputs = [
       nixpkgs.cmake
       nixpkgs.utillinux
@@ -40,12 +40,17 @@ in
     preConfigure = ''
       export STAR_HOST_SYS=sl73_gcc485
     '';
-    preBuild = ''
-       make St_g2t StDb_Tables emc_Tables gen_Tables ctf_Tables geometry_Tables global_Tables sim_Tables svt_Tables ftpc_Tables StEmcADCtoEMaker St_ctf -j $NIX_BUILD_CORES
-    '';
     cmakeFlags = [
       "-DSTAR_SRC=${star_cvs}"
       ];
+    buildPhase = ''
+       make ${target} -j $NIX_BUILD_CORES
+    '';
+    installPhase = ''
+      # We can't do make install because it will trigger make all
+      # so let's just make a dummy output for now
+      touch $out
+    '';
     enableParallelBuilding = true;
     hardeningDisable = [ "format" ];
   }
