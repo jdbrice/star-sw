@@ -209,7 +209,7 @@ env:
 # - TARGET=StvUtil
 # - TARGET=TPCCATracker
 before_script:
-# download precompiled deps
- - wget http://aspid.ru/~dump/55i5vnakyd2bjpdnx020scx58ahlxxhg-star-soft.drv-closure.nar
+# download precompiled deps. will timeout if no dns/connect/read in 20 seconds and wait 5 seconds before trying again
+ - wget --retry-connrefused --timeout=20 --waitretry=5 --tries=20 http://aspid.ru/~dump/55i5vnakyd2bjpdnx020scx58ahlxxhg-star-soft.drv-closure.nar
  - nix-store --import < *.nar
 script: nix-build .travis/default.nix -I star-nix=https://github.com/veprbl/star-nix/archive/6d2be9f816c26fd770b31942a08baa89271f9bfb.tar.gz --arg nixpkgs "import (builtins.fetchTarball https://github.com/NixOS/nixpkgs/tarball/120b013e0c082d58a5712cde0a7371ae8b25a601) {}" --argstr target $TARGET --cores 2
