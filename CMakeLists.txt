@@ -85,8 +85,6 @@ star_add_library_geometry( StarVMC/Geometry StarGeometry )
 star_add_library(pams/geometry)
 star_add_library(pams/ctf St_ctf)
 star_add_library(pams/sim/g2t St_g2t)
-add_dependencies(St_g2t sim_Tables gen_Tables)
-add_dependencies(St_ctf sim_Tables)
 
 set( star_lib_dir_blacklist
 	StarVMC/GeoTestMaker
@@ -118,14 +116,6 @@ set( star_lib_dir_blacklist
 GET_SUBDIRS( "StarVMC;StRoot" star_lib_dirs )
 FILTER_LIST( star_lib_dirs EXCLUDE ${star_lib_dir_blacklist} )
 
-foreach( star_lib_dir ${star_lib_dirs} )
-	star_add_library( ${star_lib_dir} )
-	get_filename_component(star_lib_name ${star_lib_dir} NAME)
-	add_dependencies(${star_lib_name}
-		 St_g2t StDb_Tables emc_Tables gen_Tables ctf_Tables
-		 geometry_Tables global_Tables sim_Tables svt_Tables ftpc_Tables)
-endforeach()
-
 # Manually set package specific properties
 set_target_properties(TPCCATracker PROPERTIES LINK_LIBRARIES "${ROOT_Vc_LIBRARY}")
 target_include_directories(Stv PRIVATE "${STAR_CMAKE_DIR}/star-aux/StarVMC/geant3/TGeant3")
@@ -134,16 +124,8 @@ target_include_directories(St_g2t PRIVATE
 	"${STAR_SRC}/asps/Simulation/starsim/include")
 
 star_add_library_vertexnosti( StRoot/StGenericVertexMaker )
-add_dependencies(StGenericVertexMakerNoSti StDb_Tables)
-add_dependencies(StEmcCalibrationMaker StEmcADCtoEMaker)
-add_dependencies(StEmcPool StEmcADCtoEMaker)
-add_dependencies(StEmcRawMaker StEmcADCtoEMaker)
-add_dependencies(StGammaMaker StEmcADCtoEMaker)
-add_dependencies(StPeCMaker StEmcADCtoEMaker)
-add_dependencies(StPreEclMaker StEmcADCtoEMaker)
-add_dependencies(StTriggerUtilities StEmcADCtoEMaker)
-add_dependencies(St_ctf_Maker St_ctf)
 
+include("deps.cmake")
 
 install(DIRECTORY ${STAR_SRC}/StarVMC ${STAR_SRC}/StRoot
 	DESTINATION ${STAR_ADDITIONAL_INSTALL_PREFIX}/include
