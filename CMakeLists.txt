@@ -116,6 +116,11 @@ set( star_lib_dir_blacklist
 GET_SUBDIRS( "StarVMC;StRoot" star_lib_dirs )
 FILTER_LIST( star_lib_dirs EXCLUDE ${star_lib_dir_blacklist} )
 
+foreach( star_lib_dir ${star_lib_dirs} )
+       star_add_library( ${star_lib_dir} )
+       get_filename_component(star_lib_name ${star_lib_dir} NAME)
+endforeach()
+
 # Manually set package specific properties
 set_target_properties(TPCCATracker PROPERTIES LINK_LIBRARIES "${ROOT_Vc_LIBRARY}")
 target_include_directories(Stv PRIVATE "${STAR_CMAKE_DIR}/star-aux/StarVMC/geant3/TGeant3")
