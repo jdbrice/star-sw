@@ -46,8 +46,7 @@ message(STATUS "star-cmake: CMAKE_CXX_FLAGS = \"${CMAKE_CXX_FLAGS}\"")
 message(STATUS "star-cmake: CMAKE_C_FLAGS = \"${CMAKE_C_FLAGS}\"")
 message(STATUS "star-cmake: CMAKE_Fortran_FLAGS = \"${CMAKE_Fortran_FLAGS}\"")
 
-star_preinstall_headers( StarVMC )
-star_preinstall_headers( StRoot )
+star_preinstall_headers(${CMAKE_BINARY_DIR}/include)
 
 include_directories(
 	${ROOT_INCLUDE_DIR}
@@ -117,8 +116,11 @@ GET_SUBDIRS( "StarVMC;StRoot" star_lib_dirs )
 FILTER_LIST( star_lib_dirs EXCLUDE ${star_lib_dir_blacklist} )
 
 foreach( star_lib_dir ${star_lib_dirs} )
-       star_add_library( ${star_lib_dir} )
-       get_filename_component(star_lib_name ${star_lib_dir} NAME)
+	star_add_library( ${star_lib_dir} )
+	get_filename_component(star_lib_name ${star_lib_dir} NAME)
+	add_dependencies(${star_lib_name}
+		St_g2t StDb_Tables emc_Tables gen_Tables ctf_Tables
+		geometry_Tables global_Tables sim_Tables svt_Tables ftpc_Tables)
 endforeach()
 
 # Manually set package specific properties
@@ -138,3 +140,8 @@ install(DIRECTORY ${STAR_SRC}/StarVMC ${STAR_SRC}/StRoot
 
 install(DIRECTORY ${STAR_SRC}/StRoot/StBFChain
 	DESTINATION StRoot)
+
+# Copy generated headers (and the flatten hierarchy of headers files) from the
+# build directory
+install(DIRECTORY ${CMAKE_BINARY_DIR}/include/
+	DESTINATION ${STAR_ADDITIONAL_INSTALL_PREFIX}/include_all)

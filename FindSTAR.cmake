@@ -7,30 +7,45 @@
 #
 
 
-set( STAR_INCLUDE_DIRS )
+set(STAR_ROOT "$ENV{STAR}" CACHE STRING "Path to directory with STAR soft installed")
 
-find_path( STAR_INCLUDE_DIR_ONE "StChain/StChain.h" PATHS "$ENV{STAR}/StRoot" )
-list( APPEND STAR_INCLUDE_DIRS ${STAR_INCLUDE_DIR_ONE})
+if( NOT STAR_ROOT )
+	message(FATAL_ERROR "STAR_ROOT must be set, i.e. \"cmake -D STAR_ROOT=<path to STAR dir>\" "
+	                    "Alternatively, one can specify environment variable \"STAR\"")
+endif()
 
-find_path( STAR_INCLUDE_DIR_TWO "StChain.h" PATHS "$ENV{STAR}/.$ENV{STAR_HOST_SYS}/include" )
-list( APPEND STAR_INCLUDE_DIRS ${STAR_INCLUDE_DIR_TWO})
+# Make use of the $STAR_HOST_SYS evironment variable. If it is set use it as the
+# typical STAR installation prefix
+set(STAR_ADDITIONAL_INSTALL_PREFIX ".")
+
+if( DEFINED ENV{STAR_HOST_SYS} )
+	set(STAR_ADDITIONAL_INSTALL_PREFIX ".$ENV{STAR_HOST_SYS}")
+	set(STAR_ROOT "${STAR_ROOT}/${STAR_ADDITIONAL_INSTALL_PREFIX}")
+endif()
 
 
-set( STAR_LIBRARY_DIRS "${CMAKE_CURRENT_BINARY_DIR}/.$ENV{STAR_HOST_SYS}/lib"
-                       "${STAR_ROOT}/.$ENV{STAR_HOST_SYS}/lib"
-                       "$ENV{STAR}/.$ENV{STAR_HOST_SYS}/lib" )
+set(STAR_INCLUDE_DIRS
+	"${STAR_ROOT}/include"
+	"${STAR_ROOT}/include/StRoot"
+	"${STAR_ROOT}/include/StarVMC"
+	"${STAR_ROOT}/include_all"
+)
+
+set(STAR_LIBRARY_DIRS "${CMAKE_CURRENT_BINARY_DIR}/${STAR_ADDITIONAL_INSTALL_PREFIX}/lib"
+                      "${STAR_ROOT}/lib")
 
 set( star_core_libs
 	StarClassLibrary
 	StarMagField
 	StarRoot
-	St_base
 	StBichsel
 	StBTofUtil
 	StChain
 	StDbBroker
 	StDbLib
 	StDetectorDbMaker
+	StDbUtilities
+	StTpcDb
 	St_db_Maker
 	StEEmcUtil
 	StEmcUtil
@@ -38,15 +53,37 @@ set( star_core_libs
 	StFmsUtil
 	StEvent
 	StEventMaker
+	StEventUtilities
+	StMcEvent
 	StGenericVertexMaker
 	Sti
 	StiUtilities
 	StIOMaker
 	StMuDSTMaker
 	StStrangeMuDstMaker
-	St_Tables
+	StDb_Tables
 	StTableUtilities
 	StUtilities
+	St_base
+	StiIst
+	StiTpc
+	StiPxl
+	StiSsd
+	StiSvt
+	StiMaker
+	StSsdDbMaker
+	StSsdUtil
+	StSstUtil
+	StIstDbMaker
+	StarGeometry
+	StarAgmlLib
+	StarAgmlUtil
+	StSvtClassLibrary
+	StFtpcTrackMaker
+	StFtpcClusterMaker
+	St_ctf
+	geometry_Tables
+	ftpc_Tables
 )
 
 set( STAR_LIBRARIES )
@@ -54,16 +91,12 @@ set( STAR_LIBRARIES )
 foreach( star_component ${star_core_libs} ${STAR_FIND_COMPONENTS} )
 
 	find_library( STAR_${star_component}_LIBRARY ${star_component}
-	              PATHS
-	              "./.$ENV{STAR_HOST_SYS}/lib"
-	              "${STAR_ROOT}/.$ENV{STAR_HOST_SYS}/lib"
-	              "$ENV{STAR}/.$ENV{STAR_HOST_SYS}/lib"
-	)
+	              PATHS ${STAR_LIBRARY_DIRS} )
 	
 	if( STAR_${star_component}_LIBRARY )
 		mark_as_advanced( STAR_${star_component}_LIBRARY )
 		list( APPEND STAR_LIBRARIES ${STAR_${star_component}_LIBRARY} )
- 		if( STAR_FIND_COMPONENTS )
+		if( STAR_FIND_COMPONENTS )
 			list( REMOVE_ITEM STAR_FIND_COMPONENTS ${star_component} )
 		endif()
 	else()
@@ -77,17 +110,17 @@ if( STAR_LIBRARIES )
 endif()
 
 
-message( STATUS "Found the following STAR libraries:" )
+message( STATUS "Found STAR libraries:" )
 foreach( star_lib ${STAR_LIBRARIES} )
 	message(STATUS "  ${star_lib}")
 endforeach()
 
 
-mark_as_advanced( STAR_INCLUDE_DIRS STAR_LIBRARIES STAR_LIBRARY_DIRS )
+mark_as_advanced(STAR_INCLUDE_DIRS STAR_LIBRARIES STAR_LIBRARY_DIRS)
 
 
 # Set STAR_FOUND to TRUE if all listed variables are TRUE
 include( FindPackageHandleStandardArgs )
 
-find_package_handle_standard_args( STAR DEFAULT_MSG
-	STAR_INCLUDE_DIRS STAR_LIBRARIES STAR_LIBRARY_DIRS )
+find_package_handle_standard_args(STAR DEFAULT_MSG
+	STAR_INCLUDE_DIRS STAR_LIBRARIES STAR_LIBRARY_DIRS)

@@ -205,16 +205,16 @@ function(STAR_ADD_LIBRARY star_lib_dir)
 		EXCLUDE ${star_lib_exclude})
 
 	install(TARGETS ${star_lib_name}
-		LIBRARY DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib"
-		ARCHIVE DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib")
+		LIBRARY DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib" OPTIONAL
+		ARCHIVE DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib" OPTIONAL)
 
 	install(FILES ${headers_idl}
-		DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/include/tables/${star_lib_name_for_tables}")
+		DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/include/tables/${star_lib_name_for_tables}" OPTIONAL)
 
 endfunction()
 
 
-macro( FILTER_LIST arg_list )
+macro(FILTER_LIST arg_list)
 
 	# Starting cmake 3.6 one can simply use list( FILTER ... )
 	#list( FILTER sources EXCLUDE REGEX "${ARG_EXCLUDE}" )
@@ -253,7 +253,7 @@ endmacro()
 
 # Builds a list of subdirectories with complete path found in the
 # 'directories'
-macro( GET_SUBDIRS directories subdirectories  )
+macro(GET_SUBDIRS directories subdirectories)
 
 	cmake_parse_arguments(ARG "INCLUDE_PARENT" "" "" ${ARGN})
 
@@ -290,8 +290,10 @@ endmacro()
 
 
 #
-# From `star_lib_dir` extract the library target name and form an absolute and
-# a corresponding output paths. The input path `star_lib_dir` can be either
+# From the path provided by the user (`star_lib_dir`) extracts the library
+# target name (`lib_name`), an absolute path to the library source code
+# (`path_abs`), and the corresponding output path where the generated or built
+# code can be placed (`path_out`). The input path `star_lib_dir` can be either
 # absolute or relative to ${STAR_SRC}
 #
 function(STAR_TARGET_PATHS star_lib_dir lib_name path_abs path_out)
@@ -340,11 +342,11 @@ set( StEvent_LINKDEF_HEADERS
 	"${STAR_SRC}/StRoot/StDaqLib/TRG/trgStructures2004.h"
 	"${STAR_SRC}/StRoot/StDaqLib/TRG/trgStructures2005.h"
 	"${STAR_SRC}/StRoot/StDaqLib/TRG/trgStructures2007.h"
-	"${STAR_CMAKE_DIR}/StArray_cint.h"
+	"${STAR_CMAKE_DIR}/star-aux/StArray_cint.h"
 )
 set( StEStructPool_LINKDEF_HEADERS
 	"$ENV{ROOTSYS}/include/TVector2.h"
-	"${STAR_CMAKE_DIR}/StArray_cint.h"
+	"${STAR_CMAKE_DIR}/star-aux/StArray_cint.h"
 )
 set( StGammaMaker_LINKDEF_HEADERS "$ENV{ROOTSYS}/include/TVector3.h" )
 set( StTriggerUtilities_LINKDEF_HEADERS "${STAR_SRC}/StRoot/StChain/StMaker.h" )
@@ -358,23 +360,26 @@ set( St_g2t_INCLUDE_DIRECTORIES
 
 
 #
-# Flattens the hierarchy of header files found in `parent_dir` at 1 level deep
-# by copying them to `${CMAKE_CURRENT_BINARY_DIR}/include/`
+# Flattens the hierarchy of header files found in select subdirectories in
+# `${STAR_SRC}` by copying them to `destination_dir` at the same level
 #
-function(STAR_PREINSTALL_HEADERS parent_dir)
+function(STAR_PREINSTALL_HEADERS destination_dir)
 
-	# Get all header files in 'parent_dir'
+	# Collect files from some subdirectiries
 	file(GLOB header_files
-		"${STAR_SRC}/${parent_dir}/*/*.h"
-		"${STAR_SRC}/${parent_dir}/*/*.hh"
-		"${STAR_SRC}/${parent_dir}/*/*.inc"
+		"${STAR_SRC}/StRoot/*/*.h"
+		"${STAR_SRC}/StRoot/*/*.hh"
+		"${STAR_SRC}/StRoot/*/*.inc"
+		"${STAR_SRC}/StarVMC/*/*.h"
+		"${STAR_SRC}/StarVMC/*/*.hh"
+		"${STAR_SRC}/StarVMC/*/*.inc"
 		"${STAR_SRC}/asps/rexe/TGeant3/*.h"
 		"${STAR_SRC}/pams/*/inc/*.h"
 		"${STAR_SRC}/pams/*/inc/*.inc")
 
-	foreach( header_file ${header_files})
+	foreach( header_file ${header_files} )
 		get_filename_component( header_file_name ${header_file} NAME )
-		configure_file( "${header_file}" "${CMAKE_CURRENT_BINARY_DIR}/include/${header_file_name}" COPYONLY )
+		configure_file( "${header_file}" "${destination_dir}/${header_file_name}" COPYONLY )
 	endforeach()
 
 endfunction()
@@ -385,10 +390,11 @@ endfunction()
 #
 function(STAR_ADD_LIBRARY_GEOMETRY star_lib_dir)
 
-	# Get first optional unnamed parameter
-	set(user_lib_name ${ARGV1})
-
 	star_target_paths(${star_lib_dir} star_lib_name star_lib_dir_abs star_lib_dir_out)
+
+	# Change the name of the library/target and output directory if an
+	# optional unnamed parameter is provided by the user
+	set(user_lib_name ${ARGV1})
 
 	if( user_lib_name )
 		string(REPLACE ${star_lib_name} ${user_lib_name} star_lib_dir_out ${star_lib_dir_out})
@@ -418,18 +424,22 @@ function(STAR_ADD_LIBRARY_GEOMETRY star_lib_dir)
 			list(APPEND geo_config_headers ${geo_header})
 		endif()
 		list(APPEND geo_sources ${geo_source})
+		list(APPEND geo_headers ${geo_header})
 
 	endforeach()
 
 	# Create a string by replacing ; with gcc compiler options
 	string(REGEX REPLACE "([^;]+);" "-include \\1 " geo_config_headers_include "${geo_config_headers};")
 
-	# Special treatment requireed for the aggregate geometry file
+	# Special treatment required for the aggregate geometry file
 	set_source_files_properties(${star_lib_dir_out}/StarGeo.cxx
 		PROPERTIES COMPILE_FLAGS "${geo_config_headers_include}")
 
 	add_library(${star_lib_name} ${geo_sources} ${star_lib_dir_out}_dict.cxx)
-	set_target_properties(${star_lib_name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${star_lib_dir_out})
+	set_target_properties(${star_lib_name} PROPERTIES
+		LIBRARY_OUTPUT_DIRECTORY ${star_lib_dir_out}
+		PUBLIC_HEADER "${geo_headers}")
+
 	target_include_directories(${star_lib_name} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 	# Generate the _dict.cxx file for the library
@@ -437,10 +447,13 @@ function(STAR_ADD_LIBRARY_GEOMETRY star_lib_dir)
 		LINKDEF_HEADERS ${star_lib_dir_out}/StarGeo.h
 		LINKDEF_OPTIONS "-p;-D__ROOT__")
 
+	# Get relative path for the generated headers to be used at installation
+	# stage
+	file(RELATIVE_PATH geo_headers_rel_path ${CMAKE_CURRENT_BINARY_DIR} ${star_lib_dir_out})
 	install(TARGETS ${star_lib_name}
-		LIBRARY DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib"
-		ARCHIVE DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib")
-
+		LIBRARY DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib" OPTIONAL
+		ARCHIVE DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib" OPTIONAL
+		PUBLIC_HEADER DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/include/${geo_headers_rel_path}" OPTIONAL)
 endfunction()
 
 
@@ -461,9 +474,9 @@ function(STAR_ADD_LIBRARY_TABLE star_lib_dir )
 		PUBLIC_HEADER "${headers_idl}")
 
 	install(TARGETS ${star_lib_name}
-		LIBRARY DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib"
-		ARCHIVE DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib"
-		PUBLIC_HEADER DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/include/tables")
+		LIBRARY DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib" OPTIONAL
+		ARCHIVE DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib" OPTIONAL
+		PUBLIC_HEADER DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/include/tables" OPTIONAL)
 endfunction()
 
 
@@ -512,8 +525,8 @@ function(STAR_ADD_LIBRARY_VERTEXNOSTI star_lib_dir )
 		VERBATIM )
 
 	install(TARGETS StGenericVertexMakerNoSti
-		LIBRARY DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib"
-		ARCHIVE DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib")
+		LIBRARY DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib" OPTIONAL
+		ARCHIVE DESTINATION "${STAR_ADDITIONAL_INSTALL_PREFIX}/lib" OPTIONAL)
 endfunction()
 
 
@@ -639,8 +652,8 @@ function(STAR_PROCESS_F star_lib_name in_F_files star_lib_dir_out out_F_files)
 
 	set(out_F_files_)
 
-	get_property(currdir_include_dir DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
-	set(target_include_dirs ${currdir_include_dir} ${${star_lib_name}_INCLUDE_DIRECTORIES})
+	get_property(currdir_include_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+	set(target_include_dirs ${currdir_include_dirs} ${${star_lib_name}_INCLUDE_DIRECTORIES})
 	string( REGEX REPLACE "([^;]+)" "-I\\1" target_include_dirs "${target_include_dirs}" )
 
 	foreach( f_file ${in_F_files} )
