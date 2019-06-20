@@ -10,8 +10,8 @@
 set(STAR_ROOT "$ENV{STAR}" CACHE STRING "Path to directory with STAR soft installed")
 
 if( NOT STAR_ROOT )
-	message(FATAL_ERROR "STAR_ROOT must be set, i.e. \"cmake -D STAR_ROOT=<path to STAR dir>\" "
-	                    "Alternatively, one can specify environment variable \"STAR\"")
+	message(WARNING "STAR_ROOT must be set, i.e. \"cmake -D STAR_ROOT=<path to STAR dir>\" "
+	                "Alternatively, one can specify environment variable \"STAR\"")
 endif()
 
 # Make use of the $STAR_HOST_SYS evironment variable. If it is set use it as the
@@ -25,16 +25,20 @@ endif()
 
 
 set(STAR_INCLUDE_DIRS
+	# These paths should point to where the STAR soft is installed
 	"${STAR_ROOT}/include"
 	"${STAR_ROOT}/include/StRoot"
 	"${STAR_ROOT}/include/StarVMC"
 	"${STAR_ROOT}/include_all"
-)
+	# The following is just a workaround for the STAR code design
+	# disrespecting the file hierarchy in the installed directory
+	"$ENV{STAR}"
+	"$ENV{STAR}/StRoot"
+	"$ENV{STAR}/StarVMC")
 
-set(STAR_LIBRARY_DIRS "${CMAKE_CURRENT_BINARY_DIR}/${STAR_ADDITIONAL_INSTALL_PREFIX}/lib"
-                      "${STAR_ROOT}/lib")
+set(STAR_LIBRARY_DIRS "${STAR_ROOT}/lib")
 
-set( star_core_libs
+set(star_libs
 	StarClassLibrary
 	StarMagField
 	StarRoot
@@ -84,35 +88,49 @@ set( star_core_libs
 	St_ctf
 	geometry_Tables
 	ftpc_Tables
+	StDAQMaker
+	StDaqLib
+	RTS
+	StFtpcSlowSimMaker
+	StAssociationMaker
+	StMcEventMaker
+	StarMiniCern
+	${STAR_FIND_COMPONENTS}
 )
 
-set( STAR_LIBRARIES )
+if( star_libs )
+	list( REMOVE_DUPLICATES star_libs )
+endif()
 
-foreach( star_component ${star_core_libs} ${STAR_FIND_COMPONENTS} )
+set(STAR_LIBRARIES)
 
-	find_library( STAR_${star_component}_LIBRARY ${star_component}
+foreach(star_lib ${star_libs})
+
+	find_library( STAR_LIBRARY_${star_lib} ${star_lib}
 	              PATHS ${STAR_LIBRARY_DIRS} )
 	
-	if( STAR_${star_component}_LIBRARY )
-		mark_as_advanced( STAR_${star_component}_LIBRARY )
-		list( APPEND STAR_LIBRARIES ${STAR_${star_component}_LIBRARY} )
-		if( STAR_FIND_COMPONENTS )
-			list( REMOVE_ITEM STAR_FIND_COMPONENTS ${star_component} )
-		endif()
-	else()
-		message( WARNING "Cannot find STAR component: ${star_component}" )
+	if( STAR_LIBRARY_${star_lib} )
+		mark_as_advanced( STAR_LIBRARY_${star_lib} )
+		list( APPEND STAR_LIBRARIES ${STAR_LIBRARY_${star_lib}} )
 	endif()
 
 endforeach()
 
-if( STAR_LIBRARIES )
-	list( REMOVE_DUPLICATES STAR_LIBRARIES )
+
+if(NOT WIN32)
+	string(ASCII 27 Esc)
+	set(ColorReset "${Esc}[m")
+	set(ColorGreen "${Esc}[32m")
+	set(ColorRed   "${Esc}[31m")
 endif()
 
-
-message( STATUS "Found STAR libraries:" )
-foreach( star_lib ${STAR_LIBRARIES} )
-	message(STATUS "  ${star_lib}")
+message(STATUS "Found STAR libraries:")
+foreach(star_lib ${star_libs})
+	if(STAR_LIBRARY_${star_lib})
+	        message(STATUS "  ${ColorGreen}${star_lib}${ColorReset}:\t${STAR_LIBRARY_${star_lib}}")
+	else()
+	        message(STATUS "  ${ColorRed}${star_lib}${ColorReset}:\t${STAR_LIBRARY_${star_lib}}")
+	endif()
 endforeach()
 
 
