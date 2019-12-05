@@ -67,7 +67,7 @@ if(TARGET StgMaker)
 		KiTrack
 		PREFIX "external/"
 		GIT_REPOSITORY "https://github.com/star-bnl/KiTrack.git"
-		GIT_TAG "e99c0e70"
+		GIT_TAG "efd317b86ce2a174e50ebe183582b36102385bb1"
 		CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${STAR_INSTALL_PREFIX} -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
 	)
 
