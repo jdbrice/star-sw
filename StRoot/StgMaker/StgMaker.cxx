@@ -4,7 +4,7 @@
 #include "StgMaker/include/Tracker/FwdTracker.h"
 #include "StgMaker/include/Tracker/FwdHit.h"
 #include "StgMaker/include/Tracker/TrackFitter.h"
-#include "StgMaker/XmlConfig/XmlConfig.h"
+
 
 #include "KiTrack/IHit.h"
 
@@ -36,6 +36,8 @@
 
 #include "StarClassLibrary/StPhysicalHelix.hh"
 #include "St_base/StMessMgr.h"
+
+
 
 
 //_______________________________________________________________________________________
@@ -105,7 +107,7 @@ public:
    // will be provided by the maker.
    void initialize()
    {
-      LOG_INFO << "ForwardTracker::initialize()" << endm;
+      LOG_INFO << "ForwardTracker::initialize() TEST" << endm;
       nEvents = 1; // only process single event
 
       // Create the forward system...
@@ -119,6 +121,16 @@ public:
       // initialize the track fitter
       trackFitter = new TrackFitter( cfg );
       trackFitter->setup( cfg.get<bool>("TrackFitter:display") );
+
+      ForwardTrackMaker::initialize();
+   }
+
+   void finish() {
+      LOG_SCOPE_FUNCTION( INFO);
+      qPlotter->finish();
+      writeEventHistograms();
+
+
    }
 
 };
@@ -132,6 +144,10 @@ public:
    {
       return _hits;
    };
+   std::map<int, std::vector<KiTrack::IHit *> > &loadSi( unsigned long long )
+   {
+      return _fsi_hits;
+   };
    std::map<int, shared_ptr<McTrack>> &getMcTrackMap()
    {
       return _mctracks;
@@ -141,11 +157,13 @@ public:
    void clear()
    {
       _hits.clear();
+      _fsi_hits.clear();
       _mctracks.clear();
    }
 
    // TODO, protect and add interaface for pushing hits / tracks
    std::map<int, std::vector<KiTrack::IHit *> >  _hits;
+   std::map<int, std::vector<KiTrack::IHit *> >  _fsi_hits;
    std::map<int, shared_ptr<McTrack> > _mctracks;
 };
 
@@ -154,6 +172,20 @@ StgMaker::StgMaker() : StMaker("stg"), mForwardTracker(0), mForwardHitLoader(0),
 {
 
 };
+
+int StgMaker::Finish(){
+   LOG_SCOPE_FUNCTION(INFO);
+
+   mForwardTracker->finish();
+   gDirectory->mkdir( "StgMaker" );
+   gDirectory->cd("StgMaker");
+   for (auto nh : histograms ) {
+      nh.second->Write();
+   }
+
+   return kStOk;
+}
+
 //________________________________________________________________________
 int StgMaker::Init()
 {
@@ -161,23 +193,26 @@ int StgMaker::Init()
    // Initialize configuration file
    std::string configFile = "config.xml";
    std::map<string, string> cmdLineConfig;
-   jdb::XmlConfig _xmlconfig;
-   _xmlconfig.loadFile( configFile, cmdLineConfig );
+   // jdb::XmlConfig _xmlconfig;
+   _pxmlconfig = new jdb::XmlConfig();
+   _pxmlconfig->loadFile( configFile, cmdLineConfig );
+
+
    // Dump configuration to screen
-   LOG_INFO << _xmlconfig.dump().c_str() << endm;
+   // LOG_INFO << _xmlconfig.dump().c_str() << endm;
 
    // Initialize debugging
    // int argc=1;
    // char* argv[]={"StgMaker",""}; // deprecated, g++ warns...
    // loguru::init(argc, argv );
    loguru::add_file("everything.log", loguru::Truncate, loguru::Verbosity_2);
-   loguru::g_stderr_verbosity = 1;
+   loguru::g_stderr_verbosity = loguru::Verbosity_OFF;
 
    // Create instance of the criteria histograms  (is this optional?)
    //  CritHisto::Instance();
 
    mForwardTracker = new ForwardTracker();
-   mForwardTracker->setConfig( _xmlconfig );
+   mForwardTracker->setConfig( *_pxmlconfig );
 
    mForwardHitLoader = new ForwardHitLoader();
    mForwardTracker->setLoader( mForwardHitLoader );
@@ -185,33 +220,50 @@ int StgMaker::Init()
 
    mForwardTracker->initialize();
 
+   // create histograms
+   histograms[ "nMcTracks" ] = new TH1I( "nMcTracks", ";# MC Tracks/Event", 1000, 0, 1000 );
+   histograms[ "nHitsSTGC" ] = new TH1I( "nHitsSTGC", ";# STGC Hits/Event", 1000, 0, 1000 );
+   histograms[ "nHitsFSI" ] = new TH1I( "nHitsFSI", ";# FSIT Hits/Event", 1000, 0, 1000 );
+   
+   histograms[ "stgc_volume_id" ] = new TH1I( "stgc_volume_id", ";stgc_volume_id", 50, 0, 50 );
+   histograms[ "fsi_volume_id" ] = new TH1I( "fsi_volume_id", ";fsi_volume_id", 50, 0, 50 );
+
+   // there are 4 stgc stations
+   for ( int i = 0; i < 4; i++ ){
+      histograms[ TString::Format("stgc%dHitMap", i).Data() ] = new TH2F( TString::Format("stgc%dHitMap", i), TString::Format("STGC Layer %d; x (cm); y(cm)"), 200, -100, 100, 200, -100, 100 );
+   }
+
+   // There are 3 silicon stations
+   for ( int i = 0; i < 3; i++ ){
+      histograms[ TString::Format("fsi%dHitMap", i).Data() ] = new TH2F( TString::Format("fsi%dHitMap", i), TString::Format("FSI Layer %d; x (cm); y(cm)"), 200, -100, 100, 200, -100, 100 );
+   }
+
    return kStOK;
 };
 //________________________________________________________________________
 int StgMaker::Make()
 {
+   LOG_INFO << "StgMaker::Make()   " << endm;
 
    const double z_fst[]  = { 93.3, 140.0, 186.6 };
    const double z_stgc[] = { 280.9, 303.7, 326.6, 349.4 };
    const double z_wcal[] = { 711.0 };
    const double z_hcal[] = { 740.0 }; // TODO: get correct value
 
-
-   StEvent *event = static_cast<StEvent *>(GetInputDS("StEvent"));
-
-   if ( 0 == event ) {
-      LOG_INFO << "No event, punt on forward tracking." << endm; assert(0);
-      return kStWarn;
-   }
+   // a hack until i figure out build errors when adding includes to StgMaker.h
+   // jdb::XmlConfig cfg = *_pxmlconfig;
 
    // I am a horrible person for doing this by reference, but at least
    // I don't use "goto" anywhere.
    std::map<int, shared_ptr<McTrack> > &mcTrackMap = mForwardHitLoader->_mctracks;
    std::map<int, std::vector<KiTrack::IHit *> >  &hitMap = mForwardHitLoader->_hits;
+   std::map<int, std::vector<KiTrack::IHit *> >  &fsiHitMap = mForwardHitLoader->_fsi_hits;
 
    // Get geant tracks
    St_g2t_track *g2t_track = (St_g2t_track *) GetDataSet("geant/g2t_track"); //  if (!g2t_track)    return kStWarn;
 
+   LOG_INFO << "# mc tracks = " << g2t_track->GetNRows() << endm;
+   histograms[ "nMcTracks" ]->Fill( g2t_track->GetNRows() );
    if ( g2t_track ) for ( int irow = 0; irow < g2t_track->GetNRows(); irow++ ) {
          g2t_track_st *track = (g2t_track_st *)g2t_track->At(irow);
 
@@ -266,20 +318,30 @@ int StgMaker::Make()
    }
 
    int nstg = g2t_stg_hits->GetNRows();
-
-   //  LOG_INFO << "nstg = " << nstg << endm;
+   histograms[ "nHitsSTGC" ]->Fill( nstg );
+    LOG_INFO << "# stg hits= " << nstg << endm;
    for ( int i = 0; i < nstg; i++ ) {
 
       g2t_fts_hit_st *git = (g2t_fts_hit_st *)g2t_stg_hits->At(i); if (0 == git) continue; // geant hit
       int   track_id  = git->track_p;
       int   volume_id = git->volume_id;
-      int   plane_id  = volume_id / 4 ;//+ 9; // four chambers/station, offset by 9 for reasons
-      float x         = git->x[0] + 0.001 * gRandom->Gaus();
-      float y         = git->x[1];
-      float z         = git->x[2];
+      int   plane_id  = (volume_id - 1) / 4 ;// from 1 - 16. four chambers per station
+      float x         = git->x[0] + gRandom->Gaus( 0, 0.01 );
+      float y         = git->x[1] + gRandom->Gaus( 0, 0.01 );
+      float z         = git->x[2] + gRandom->Gaus( 0, 0.01 );
 
-      //    LOG_INFO << "track_id=" << track_id << " volume_id=" << volume_id << " plane_id=" << plane_id << " x/y/z " << x << "/" << y << "/" << z << endm;
+      LOG_F( INFO, "STGC Hit: volume_id=%d, plane_id=%d, (%f, %f, %f)", volume_id, plane_id, x, y, z );
+      histograms[ "stgc_volume_id" ] ->Fill( volume_id );
 
+      if ( plane_id < 4 && plane_id >= 0 ){
+         histograms[ TString::Format("stgc%dHitMap", plane_id).Data() ] -> Fill( x, y );
+      }
+      else {
+         LOG_F( ERROR, "Out of bounds STGC plane_id!" );
+         continue;
+      }
+
+      // LOG_INFO << "track_id=" << track_id << " volume_id=" << volume_id << " plane_id=" << plane_id << " x/y/z " << x << "/" << y << "/" << z << endm;
       FwdHit *hit = new FwdHit(count++, x, y, z, -plane_id, track_id, mcTrackMap[track_id] );
 
       // Add the hit to the hit map
@@ -299,28 +361,42 @@ int StgMaker::Make()
       //return kStErr;
    }
    else {
-      g2t_fsi_hits->GetNRows();
+      nfsi = g2t_fsi_hits->GetNRows();
    }
 
-   for ( int i = 0; i < -nfsi; i++ ) { // yes, negative... because are skipping Si in initial tests
+   histograms[ "nHitsFSI" ]->Fill( nfsi );
+   LOG_INFO << "# fsi hits = " << nfsi << endm;
+
+   for ( int i = 0; i < nfsi; i++ ) { // yes, negative... because are skipping Si in initial tests
 
       g2t_fts_hit_st *git = (g2t_fts_hit_st *)g2t_fsi_hits->At(i); if (0 == git) continue; // geant hit
       int   track_id  = git->track_p;
-      int   volume_id = git->volume_id;
-      int   plane_id  = volume_id;
-      float x         = git->x[0];
-      float y         = git->x[1];
-      float z         = git->x[2];
+      int   volume_id = git->volume_id; // 4, 5, 6
+      int   plane_id  = volume_id - 4;
+      float x         = git->x[0] + gRandom->Gaus( 0, 0.0001 );
+      float y         = git->x[1] + gRandom->Gaus( 0, 0.0001 );
+      float z         = git->x[2] + gRandom->Gaus( 0, 0.0001 );
 
-      LOG_INFO << "track_id=" << track_id << " volume_id=" << volume_id << " x/y/z " << x << "/" << y << "/" << z << endm;
+
+      
+      LOG_F( INFO, "FSI Hit: volume_id=%d, plane_id=%d, (%f, %f, %f)", volume_id, plane_id, x, y, z );
+      histograms[ "fsi_volume_id" ] ->Fill( volume_id );
+      // LOG_INFO << "track_id=" << track_id << " volume_id=" << volume_id << " x/y/z " << x << "/" << y << "/" << z << endm;
+      
+      if ( plane_id < 3 && plane_id >= 0 ){
+         histograms[ TString::Format("fsi%dHitMap", plane_id).Data() ] -> Fill( x, y );
+      } else {
+         LOG_F( ERROR, "Out of bounds FSI plane_id!" );
+         continue;
+      }
 
       FwdHit *hit = new FwdHit(count++, x, y, z, volume_id, track_id, mcTrackMap[track_id] );
 
       // Add the hit to the hit map
-      hitMap[ hit->getSector() ].push_back(hit);
+      fsiHitMap[ hit->getSector() ].push_back(hit);
 
       // Add hit pointer to the track
-      if ( mcTrackMap[ track_id ] )    mcTrackMap[ track_id ]->addHit( hit );
+      // if ( mcTrackMap[ track_id ] )    mcTrackMap[ track_id ]->addHit( hit );
 
    }
 
@@ -331,6 +407,15 @@ int StgMaker::Make()
 
    // Process single event
    mForwardTracker -> doEvent();
+
+   // mForwardTracker -> addSiHits();
+
+   StEvent *event = static_cast<StEvent *>(GetInputDS("StEvent"));
+
+   if ( 0 == event ) {
+      LOG_INFO << "No event, punt on forward tracking." << endm;
+      return kStOk;
+   }
 
    // Now fill StEvent
    FillEvent();
@@ -370,7 +455,7 @@ int StgMaker::Make()
 //________________________________________________________________________
 void StgMaker::Clear( const Option_t *opts )
 {
-   // mForwardHitLoader->clear();
+   mForwardHitLoader->clear();
 }
 //________________________________________________________________________
 void StgMaker::FillEvent()
